@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.despacito696969.gamechanger.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "TieredItemMixin",
+    "ItemMixin"
+  ],
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

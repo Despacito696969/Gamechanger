@@ -1,0 +1,12 @@
+accessWidener v2 named
+
+accessible field net/minecraft/world/item/DiggerItem speed F
+mutable field net/minecraft/world/item/DiggerItem speed F
+accessible field net/minecraft/world/item/DiggerItem defaultModifiers Lcom/google/common/collect/Multimap;
+mutable field net/minecraft/world/item/DiggerItem defaultModifiers Lcom/google/common/collect/Multimap;
+
+accessible field net/minecraft/world/item/Item BASE_ATTACK_DAMAGE_UUID Ljava/util/UUID;
+accessible field net/minecraft/world/item/DiggerItem attackDamageBaseline F
+mutable field net/minecraft/world/item/DiggerItem attackDamageBaseline F
+
+accessible method net/minecraft/world/food/FoodProperties <init> (IFZZZLjava/util/List;)V

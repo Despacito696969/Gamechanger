@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "gamechanger",
+  "version": "${version}",
+  "name": "Gamechanger",
+  "description": "",
+  "authors": [],
+  "contact": {
+    "repo": "https://github.com/dobry/Gamechanger"
+  },
+  "license": "MIT",
+  "icon": "assets/gamechanger/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "org.despacito696969.gamechanger.client.GamechangerClient"
+    ],
+    "main": [
+      "org.despacito696969.gamechanger.Gamechanger"
+    ]
+  },
+  "mixins": [
+    "gamechanger.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
