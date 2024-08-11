@@ -3,8 +3,6 @@ package org.despacito696969.gamechanger;
 import net.minecraft.world.food.FoodProperties;
 import org.apache.commons.compress.utils.Lists;
 
-import java.util.ArrayList;
-
 public class FoodMod extends FoodProperties {
     public FoodProperties props;
 

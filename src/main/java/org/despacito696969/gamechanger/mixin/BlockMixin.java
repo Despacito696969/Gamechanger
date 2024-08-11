@@ -2,7 +2,6 @@ package org.despacito696969.gamechanger.mixin;
 
 import net.minecraft.world.level.block.Block;
 import org.despacito696969.gamechanger.BlockPropertiesManager;
-import org.despacito696969.gamechanger.BlockPropertiesMod;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

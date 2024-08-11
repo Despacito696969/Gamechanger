@@ -23,8 +23,9 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.*;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import org.apache.logging.log4j.util.TriConsumer;
-import org.despacito696969.gamechanger.mixin.BlockStateBaseMixin;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -214,29 +215,72 @@ public class Gamechanger implements ModInitializer {
                 ));
                 // .then(literal("set"))
 
-        var blockCommand = literal("block").executes(ctx -> {
-            if (!(ctx.getSource().getEntity() instanceof Player player)) {
-                return 0;
-            }
-            var pos = player.blockPosition().below();
-            var block = player.level().getBlockState(pos).getBlock();
-
-            var hardness = block.defaultDestroyTime();
-            var mod = BlockPropertiesManager.propMods.get(block);
-            if (mod != null) {
-                if (mod.destroyTime != null) {
-                    hardness = mod.destroyTime;
-                }
-            }
-            final var finalHardness = hardness;
-            ctx.getSource().sendSuccess(
-                () -> Component.literal(
-                    BuiltInRegistries.BLOCK.getKey(block).toString() + "\n"
-                        + "hardness: " + finalHardness
-                ), false
+        var blockCommand = literal("block")
+            .then(literal("get")
+                .executes(ctx ->
+                    executeForBlock(ctx, (block) -> {
+                        var hardness = block.defaultDestroyTime();
+                        var mod = BlockPropertiesManager.propMods.get(block);
+                        if (mod != null) {
+                            if (mod.destroyTime != null) {
+                                hardness = mod.destroyTime;
+                            }
+                        }
+                        final var explosionResistance = block.getExplosionResistance();
+                        final var finalHardness = hardness;
+                        ctx.getSource().sendSuccess(
+                            () -> Component.literal(
+                                BuiltInRegistries.BLOCK.getKey(block) + "\n"
+                                    + "hardness: " + finalHardness + "\n"
+                                    + "explosionResistance: " + explosionResistance
+                            ), false
+                        );
+                    })
+                )
+            )
+            .then(literal("set")
+                .then(literal("hardness")
+                    .then(argument("value", FloatArgumentType.floatArg())
+                        .executes(
+                            ctx -> executeForBlock(ctx, (block) -> {
+                                var props = BlockPropertiesManager.getOrCreateProperties(block);
+                                props.destroyTime = FloatArgumentType.getFloat(ctx, "value");
+                            })
+                        )
+                    )
+                )
+                .then(literal("explosion_resistance")
+                    .then(argument("value", FloatArgumentType.floatArg())
+                        .executes(
+                            ctx -> executeForBlock(ctx, (block) -> {
+                                var props = BlockPropertiesManager.getOrCreateProperties(block);
+                                props.explosionResistance = FloatArgumentType.getFloat(ctx, "value");
+                            })
+                        )
+                    )
+                )
+            )
+            .then(literal("clear")
+                .then(literal("hardness")
+                    .executes(ctx -> executeForBlock(ctx, (block) -> {
+                        var props = BlockPropertiesManager.propMods.get(block);
+                        if (props == null) {
+                            return;
+                        }
+                        props.destroyTime = null;
+                    }))
+                )
+                .then(literal("explosion_resistance")
+                    .executes(ctx -> executeForBlock(ctx, (block) -> {
+                        var props = BlockPropertiesManager.propMods.get(block);
+                        if (props == null) {
+                            return;
+                        }
+                        props.explosionResistance = null;
+                    }))
+                )
             );
-            return 1;
-        });
+
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(literal("gamechanger")
             .requires(source -> source.hasPermission(2))
@@ -263,12 +307,12 @@ public class Gamechanger implements ModInitializer {
                         var foods = foodObject.getAsJsonArray();
                         for (var e : foods.asList()) {
                             if (!e.isJsonObject()) {
-                                LOGGER.warn("Config: food contains not an object: " + e.toString());
+                                LOGGER.warn("Config: food contains not an object: " + e);
                                 continue;
                             }
                             var object = e.getAsJsonObject();
                             if (!object.has("id")) {
-                                LOGGER.warn("Config: food doesn't contain id: " + e.toString());
+                                LOGGER.warn("Config: food doesn't contain id: " + e);
                                 continue;
                             }
                             var jsonId = object.get("id");
@@ -279,7 +323,7 @@ public class Gamechanger implements ModInitializer {
 
 
                             if (!object.has("type")) {
-                                LOGGER.warn("Config: food doesn't contain type: " + e.toString());
+                                LOGGER.warn("Config: food doesn't contain type: " + e);
                                 continue;
                             }
                             var jsonType = object.get("type");
@@ -308,7 +352,7 @@ public class Gamechanger implements ModInitializer {
                                         props.nutritionOpt = number.intValue();
                                     }
                                     else {
-                                        LOGGER.warn("Config: food: nutrition doesn't contain a Number: " + e.toString());
+                                        LOGGER.warn("Config: food: nutrition doesn't contain a Number: " + e);
                                     }
                                 }
                                 if (object.has("saturation")) {
@@ -318,42 +362,39 @@ public class Gamechanger implements ModInitializer {
                                         props.saturationModifierOpt = number.floatValue();
                                     }
                                     else {
-                                        LOGGER.warn("Config: food: saturation doesn't contain a Number: " + e.toString());
+                                        LOGGER.warn("Config: food: saturation doesn't contain a Number: " + e);
                                     }
                                 }
                                 if (object.has("is_meat")) {
                                     var is_meatObj = object.get("is_meat");
                                     if (is_meatObj.isJsonPrimitive() && is_meatObj.getAsJsonPrimitive().isBoolean()) {
-                                        var number = is_meatObj.getAsJsonPrimitive().getAsBoolean();
-                                        props.isMeatOpt = number;
+                                        props.isMeatOpt = is_meatObj.getAsJsonPrimitive().getAsBoolean();
                                     }
                                     else {
-                                        LOGGER.warn("Config: food: is_meat doesn't contain a Boolean: " + e.toString());
+                                        LOGGER.warn("Config: food: is_meat doesn't contain a Boolean: " + e);
                                     }
                                 }
                                 if (object.has("can_always_eat")) {
                                     var can_always_eatObj = object.get("can_always_eat");
                                     if (can_always_eatObj.isJsonPrimitive() && can_always_eatObj.getAsJsonPrimitive().isBoolean()) {
-                                        var number = can_always_eatObj.getAsJsonPrimitive().getAsBoolean();
-                                        props.canAlwaysEatOpt = number;
+                                        props.canAlwaysEatOpt = can_always_eatObj.getAsJsonPrimitive().getAsBoolean();
                                     }
                                     else {
-                                        LOGGER.warn("Config: food: can_always_eat doesn't contain a Boolean: " + e.toString());
+                                        LOGGER.warn("Config: food: can_always_eat doesn't contain a Boolean: " + e);
                                     }
                                 }
                                 if (object.has("is_fast_food")) {
                                     var is_fast_foodObj = object.get("is_fast_food");
                                     if (is_fast_foodObj.isJsonPrimitive() && is_fast_foodObj.getAsJsonPrimitive().isBoolean()) {
-                                        var number = is_fast_foodObj.getAsJsonPrimitive().getAsBoolean();
-                                        props.isFastFoodOpt = number;
+                                        props.isFastFoodOpt = is_fast_foodObj.getAsJsonPrimitive().getAsBoolean();
                                     }
                                     else {
-                                        LOGGER.warn("Config: food: is_fast_food doesn't contain a Boolean: " + e.toString());
+                                        LOGGER.warn("Config: food: is_fast_food doesn't contain a Boolean: " + e);
                                     }
                                 }
                             }
                             else {
-                                LOGGER.warn("Config: food has unsupported type: " + e.toString());
+                                LOGGER.warn("Config: food has unsupported type: " + e);
                             }
                         }
                     }
@@ -517,6 +558,20 @@ public class Gamechanger implements ModInitializer {
             return 0;
         }
         itemConsumer.accept(item);
+        return 1;
+    }
+
+    public static int executeForBlock(CommandContext<CommandSourceStack> ctx, Consumer<Block> blockConsumer) {
+        if (!(ctx.getSource().getEntity() instanceof Player player)) {
+            return 0;
+        }
+        var pos = player.blockPosition().below();
+        var block = player.level().getBlockState(pos).getBlock();
+        if (block == Blocks.AIR) {
+            return 0;
+        }
+
+        blockConsumer.accept(block);
         return 1;
     }
 }

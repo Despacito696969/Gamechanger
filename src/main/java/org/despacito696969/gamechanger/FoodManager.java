@@ -28,8 +28,6 @@ public class FoodManager {
                 obj.addProperty("id", loc.toString());
                 obj.addProperty("type", "modify");
 
-                var null_size = obj.size();
-
                 if (foodMod.nutritionOpt != null) {
                     obj.addProperty("nutrition", foodMod.nutritionOpt);
                 }
