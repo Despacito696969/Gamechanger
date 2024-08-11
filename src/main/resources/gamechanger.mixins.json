@@ -6,7 +6,9 @@
   "mixins": [
     "BlockMixin",
     "BlockStateBaseMixin",
+    "DiggerItemMixin",
     "ItemMixin",
+    "MiningLevelManagerMixin",
     "TieredItemMixin"
   ],
   "client": [

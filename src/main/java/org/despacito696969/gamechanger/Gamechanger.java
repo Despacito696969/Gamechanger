@@ -12,6 +12,7 @@ import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.mininglevel.v1.MiningLevelManager;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -213,9 +215,7 @@ public class Gamechanger implements ModInitializer {
                 .then(literal("reset").executes(
                     ctx -> applyToItem(ctx, FoodManager::clearMods)
                 ));
-                // .then(literal("set"))
-
-        var blockCommand = literal("block")
+        var blockCommand = literal("blocks")
             .then(literal("get")
                 .executes(ctx ->
                     executeForBlock(ctx, (block) -> {
@@ -228,11 +228,13 @@ public class Gamechanger implements ModInitializer {
                         }
                         final var explosionResistance = block.getExplosionResistance();
                         final var finalHardness = hardness;
+                        final var miningLevel = MiningLevelManager.getRequiredMiningLevel(block.defaultBlockState());
                         ctx.getSource().sendSuccess(
                             () -> Component.literal(
                                 BuiltInRegistries.BLOCK.getKey(block) + "\n"
                                     + "hardness: " + finalHardness + "\n"
-                                    + "explosionResistance: " + explosionResistance
+                                    + "explosionResistance: " + explosionResistance + "\n"
+                                    + "miningLevel: " + miningLevel
                             ), false
                         );
                     })
@@ -259,6 +261,16 @@ public class Gamechanger implements ModInitializer {
                         )
                     )
                 )
+                .then(literal("mining_level")
+                    .then(argument("value", IntegerArgumentType.integer())
+                        .executes(
+                            ctx -> executeForBlock(ctx, (block) -> {
+                                var props = BlockPropertiesManager.getOrCreateProperties(block);
+                                props.miningLevel = IntegerArgumentType.getInteger(ctx, "value");
+                            })
+                        )
+                    )
+                )
             )
             .then(literal("clear")
                 .then(literal("hardness")
@@ -279,6 +291,15 @@ public class Gamechanger implements ModInitializer {
                         props.explosionResistance = null;
                     }))
                 )
+                .then(literal("mining_level")
+                    .executes(ctx -> executeForBlock(ctx, (block) -> {
+                        var props = BlockPropertiesManager.propMods.get(block);
+                        if (props == null) {
+                            return;
+                        }
+                        props.miningLevel = null;
+                    }))
+                )
             );
 
 
@@ -293,6 +314,7 @@ public class Gamechanger implements ModInitializer {
             Path configPath = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
 
             FoodManager.foodMods = new HashMap<>();
+            BlockPropertiesManager.propMods = new IdentityHashMap<>();
 
             try (var reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 var element = JsonParser.parseReader(reader);
@@ -305,98 +327,7 @@ public class Gamechanger implements ModInitializer {
                     var foodObject = mainObject.get("food");
                     if (foodObject.isJsonArray()) {
                         var foods = foodObject.getAsJsonArray();
-                        for (var e : foods.asList()) {
-                            if (!e.isJsonObject()) {
-                                LOGGER.warn("Config: food contains not an object: " + e);
-                                continue;
-                            }
-                            var object = e.getAsJsonObject();
-                            if (!object.has("id")) {
-                                LOGGER.warn("Config: food doesn't contain id: " + e);
-                                continue;
-                            }
-                            var jsonId = object.get("id");
-                            if (!(jsonId.isJsonPrimitive() && jsonId.getAsJsonPrimitive().isString())) {
-                                LOGGER.warn("Config: food doesn't contain string in id field");
-                            }
-                            var id = jsonId.getAsJsonPrimitive().getAsString();
-
-
-                            if (!object.has("type")) {
-                                LOGGER.warn("Config: food doesn't contain type: " + e);
-                                continue;
-                            }
-                            var jsonType = object.get("type");
-                            if (!(jsonType.isJsonPrimitive() && jsonType.getAsJsonPrimitive().isString())) {
-                                LOGGER.warn("Config: food doesn't contain string in type field");
-                                continue;
-                            }
-                            var type = jsonType.getAsJsonPrimitive().getAsString();
-
-                            var loc = new ResourceLocation(id);
-                            var item = BuiltInRegistries.ITEM.get(loc);
-                            if (item == Items.AIR) {
-                                LOGGER.warn("Config: food has id of not existing item: " + id);
-                                continue;
-                            }
-
-                            if (type.equals("remove")) {
-                                FoodManager.foodMods.put(loc, Optional.empty());
-                            }
-                            else if (type.equals("modify")) {
-                                var props = FoodManager.getOrCreateFoodProperties(item);
-                                if (object.has("nutrition")) {
-                                    var nutritionObj = object.get("nutrition");
-                                    if (nutritionObj.isJsonPrimitive() && nutritionObj.getAsJsonPrimitive().isNumber()) {
-                                        var number = nutritionObj.getAsJsonPrimitive().getAsNumber();
-                                        props.nutritionOpt = number.intValue();
-                                    }
-                                    else {
-                                        LOGGER.warn("Config: food: nutrition doesn't contain a Number: " + e);
-                                    }
-                                }
-                                if (object.has("saturation")) {
-                                    var saturationObj = object.get("saturation");
-                                    if (saturationObj.isJsonPrimitive() && saturationObj.getAsJsonPrimitive().isNumber()) {
-                                        var number = saturationObj.getAsJsonPrimitive().getAsNumber();
-                                        props.saturationModifierOpt = number.floatValue();
-                                    }
-                                    else {
-                                        LOGGER.warn("Config: food: saturation doesn't contain a Number: " + e);
-                                    }
-                                }
-                                if (object.has("is_meat")) {
-                                    var is_meatObj = object.get("is_meat");
-                                    if (is_meatObj.isJsonPrimitive() && is_meatObj.getAsJsonPrimitive().isBoolean()) {
-                                        props.isMeatOpt = is_meatObj.getAsJsonPrimitive().getAsBoolean();
-                                    }
-                                    else {
-                                        LOGGER.warn("Config: food: is_meat doesn't contain a Boolean: " + e);
-                                    }
-                                }
-                                if (object.has("can_always_eat")) {
-                                    var can_always_eatObj = object.get("can_always_eat");
-                                    if (can_always_eatObj.isJsonPrimitive() && can_always_eatObj.getAsJsonPrimitive().isBoolean()) {
-                                        props.canAlwaysEatOpt = can_always_eatObj.getAsJsonPrimitive().getAsBoolean();
-                                    }
-                                    else {
-                                        LOGGER.warn("Config: food: can_always_eat doesn't contain a Boolean: " + e);
-                                    }
-                                }
-                                if (object.has("is_fast_food")) {
-                                    var is_fast_foodObj = object.get("is_fast_food");
-                                    if (is_fast_foodObj.isJsonPrimitive() && is_fast_foodObj.getAsJsonPrimitive().isBoolean()) {
-                                        props.isFastFoodOpt = is_fast_foodObj.getAsJsonPrimitive().getAsBoolean();
-                                    }
-                                    else {
-                                        LOGGER.warn("Config: food: is_fast_food doesn't contain a Boolean: " + e);
-                                    }
-                                }
-                            }
-                            else {
-                                LOGGER.warn("Config: food has unsupported type: " + e);
-                            }
-                        }
+                        FoodManager.loadFromJson(foods);
                     }
                     else {
                         LOGGER.warn("Config: food field should contain an array");
@@ -404,6 +335,20 @@ public class Gamechanger implements ModInitializer {
                 }
                 else {
                     LOGGER.warn("Config: no food field");
+                }
+
+                if (mainObject.has("blocks")) {
+                    var blocksObject = mainObject.get("blocks");
+                    if (blocksObject.isJsonArray()) {
+                        var blocks = blocksObject.getAsJsonArray();
+                        BlockPropertiesManager.loadFromJson(blocks);
+                    }
+                    else {
+                        LOGGER.warn("Config: blocks field should contain an array");
+                    }
+                }
+                else {
+                    LOGGER.warn("Config: no blocks field");
                 }
             }
             catch (IOException exception) {
@@ -414,6 +359,7 @@ public class Gamechanger implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register((server) -> {
             var toSave = new JsonObject();
             toSave.add("food", FoodManager.saveToJson());
+            toSave.add("blocks", BlockPropertiesManager.saveToJson());
 
             Path configPath = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
             try (var writer = Files.newBufferedWriter(configPath, StandardCharsets.UTF_8)) {

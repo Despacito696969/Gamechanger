@@ -4,10 +4,13 @@ import com.google.gson.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.despacito696969.gamechanger.Gamechanger.LOGGER;
 
 public class FoodManager {
     public static Map<ResourceLocation, Optional<FoodMod>> foodMods = new HashMap<>();
@@ -47,6 +50,101 @@ public class FoodManager {
             }
         }
         return result;
+    }
+
+    public static void loadFromJson(JsonArray foods) {
+        for (var e : foods.asList()) {
+            if (!e.isJsonObject()) {
+                LOGGER.warn("Config: food contains not an object: " + e);
+                continue;
+            }
+            var object = e.getAsJsonObject();
+            if (!object.has("id")) {
+                LOGGER.warn("Config: food doesn't contain id: " + e);
+                continue;
+            }
+            var jsonId = object.get("id");
+            if (!(jsonId.isJsonPrimitive() && jsonId.getAsJsonPrimitive().isString())) {
+                LOGGER.warn("Config: food doesn't contain string in id field: " + e);
+                continue;
+            }
+            var id = jsonId.getAsJsonPrimitive().getAsString();
+
+            if (!object.has("type")) {
+                LOGGER.warn("Config: food doesn't contain type: " + e);
+                continue;
+            }
+            var jsonType = object.get("type");
+            if (!(jsonType.isJsonPrimitive() && jsonType.getAsJsonPrimitive().isString())) {
+                LOGGER.warn("Config: food doesn't contain string in type field");
+                continue;
+            }
+            var type = jsonType.getAsJsonPrimitive().getAsString();
+
+            var loc = new ResourceLocation(id);
+            var item = BuiltInRegistries.ITEM.get(loc);
+            if (item == Items.AIR) {
+                LOGGER.warn("Config: food has id of not existing item: " + id);
+                continue;
+            }
+
+            if (type.equals("remove")) {
+                FoodManager.foodMods.put(loc, Optional.empty());
+            }
+            else if (type.equals("modify")) {
+                var props = FoodManager.getOrCreateFoodProperties(item);
+                if (object.has("nutrition")) {
+                    var nutritionObj = object.get("nutrition");
+                    if (nutritionObj.isJsonPrimitive() && nutritionObj.getAsJsonPrimitive().isNumber()) {
+                        var number = nutritionObj.getAsJsonPrimitive().getAsNumber();
+                        props.nutritionOpt = number.intValue();
+                    }
+                    else {
+                        LOGGER.warn("Config: food: nutrition doesn't contain a Number: " + e);
+                    }
+                }
+                if (object.has("saturation")) {
+                    var saturationObj = object.get("saturation");
+                    if (saturationObj.isJsonPrimitive() && saturationObj.getAsJsonPrimitive().isNumber()) {
+                        var number = saturationObj.getAsJsonPrimitive().getAsNumber();
+                        props.saturationModifierOpt = number.floatValue();
+                    }
+                    else {
+                        LOGGER.warn("Config: food: saturation doesn't contain a Number: " + e);
+                    }
+                }
+                if (object.has("is_meat")) {
+                    var is_meatObj = object.get("is_meat");
+                    if (is_meatObj.isJsonPrimitive() && is_meatObj.getAsJsonPrimitive().isBoolean()) {
+                        props.isMeatOpt = is_meatObj.getAsJsonPrimitive().getAsBoolean();
+                    }
+                    else {
+                        LOGGER.warn("Config: food: is_meat doesn't contain a Boolean: " + e);
+                    }
+                }
+                if (object.has("can_always_eat")) {
+                    var can_always_eatObj = object.get("can_always_eat");
+                    if (can_always_eatObj.isJsonPrimitive() && can_always_eatObj.getAsJsonPrimitive().isBoolean()) {
+                        props.canAlwaysEatOpt = can_always_eatObj.getAsJsonPrimitive().getAsBoolean();
+                    }
+                    else {
+                        LOGGER.warn("Config: food: can_always_eat doesn't contain a Boolean: " + e);
+                    }
+                }
+                if (object.has("is_fast_food")) {
+                    var is_fast_foodObj = object.get("is_fast_food");
+                    if (is_fast_foodObj.isJsonPrimitive() && is_fast_foodObj.getAsJsonPrimitive().isBoolean()) {
+                        props.isFastFoodOpt = is_fast_foodObj.getAsJsonPrimitive().getAsBoolean();
+                    }
+                    else {
+                        LOGGER.warn("Config: food: is_fast_food doesn't contain a Boolean: " + e);
+                    }
+                }
+            }
+            else {
+                LOGGER.warn("Config: food has unsupported type: " + e);
+            }
+        }
     }
 
     public static FoodMod getOrCreateFoodProperties(Item item) {
