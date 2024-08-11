@@ -10,3 +10,5 @@ accessible field net/minecraft/world/item/DiggerItem attackDamageBaseline F
 mutable field net/minecraft/world/item/DiggerItem attackDamageBaseline F
 
 accessible method net/minecraft/world/food/FoodProperties <init> (IFZZZLjava/util/List;)V
+
+accessible field net/minecraft/world/level/block/state/BlockBehaviour properties Lnet/minecraft/world/level/block/state/BlockBehaviour$Properties;

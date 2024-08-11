@@ -52,6 +52,7 @@ public class FoodMod extends FoodProperties {
 
     @Override
     public boolean isFastFood() {
-        return isFastFoodOpt != null ? isFastFoodOpt : super.isFastFood();
+        return isFastFoodOpt != null ?
+            isFastFoodOpt : super.isFastFood();
     }
 }
