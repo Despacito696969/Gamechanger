@@ -15,8 +15,8 @@ public class TieredItemMixin {
 
     @Inject(method = "Lnet/minecraft/world/item/TieredItem;getTier()Lnet/minecraft/world/item/Tier;", at = @At("HEAD"), cancellable = true)
     private void injected(CallbackInfoReturnable<Tier> cir) {
-        var key = BuiltInRegistries.ITEM.getKey((Item)(Object)this);
-        var tier_opt = TierManager.tierOverrides.get(key);
+        var item = (Item)(Object)this;
+        var tier_opt = TierManager.tierOverrides.get(item);
         if (tier_opt == null) {
             return;
         }

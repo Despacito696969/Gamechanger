@@ -1,7 +1,6 @@
 accessWidener v2 named
 
 accessible field net/minecraft/world/item/DiggerItem speed F
-mutable field net/minecraft/world/item/DiggerItem speed F
 accessible field net/minecraft/world/item/DiggerItem defaultModifiers Lcom/google/common/collect/Multimap;
 mutable field net/minecraft/world/item/DiggerItem defaultModifiers Lcom/google/common/collect/Multimap;
 
@@ -14,3 +13,5 @@ accessible method net/minecraft/world/food/FoodProperties <init> (IFZZZLjava/uti
 accessible field net/minecraft/world/level/block/state/BlockBehaviour properties Lnet/minecraft/world/level/block/state/BlockBehaviour$Properties;
 
 accessible class net/fabricmc/fabric/mixin/mininglevel/MiningToolItemMixin
+
+accessible field net/minecraft/world/item/ArmorItem defaultModifiers Lcom/google/common/collect/Multimap;

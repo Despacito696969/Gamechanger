@@ -13,6 +13,8 @@ import java.util.Optional;
 import static org.despacito696969.gamechanger.Gamechanger.LOGGER;
 
 public class FoodManager {
+
+    // TODO: Change ResourceLocation to Item
     public static Map<ResourceLocation, Optional<FoodMod>> foodMods = new HashMap<>();
 
     public static JsonArray saveToJson() {
