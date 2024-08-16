@@ -6,8 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.IdentityHashMap;
 import java.util.Optional;
 
 import static org.despacito696969.gamechanger.Gamechanger.LOGGER;
@@ -15,7 +14,7 @@ import static org.despacito696969.gamechanger.Gamechanger.LOGGER;
 public class FoodManager {
 
     // TODO: Change ResourceLocation to Item
-    public static Map<ResourceLocation, Optional<FoodMod>> foodMods = new HashMap<>();
+    public static IdentityHashMap<Item, Optional<FoodMod>> foodMods = new IdentityHashMap<>();
 
     public static JsonArray saveToJson() {
         var result = new JsonArray();
@@ -91,7 +90,7 @@ public class FoodManager {
             }
 
             if (type.equals("remove")) {
-                FoodManager.foodMods.put(loc, Optional.empty());
+                FoodManager.foodMods.put(item, Optional.empty());
             }
             else if (type.equals("modify")) {
                 var props = FoodManager.getOrCreateFoodProperties(item);
@@ -150,27 +149,24 @@ public class FoodManager {
     }
 
     public static FoodMod getOrCreateFoodProperties(Item item) {
-        var loc = BuiltInRegistries.ITEM.getKey(item);
-        var foodMod = foodMods.get(loc);
+        var foodMod = foodMods.get(item);
         if (foodMod != null) {
             if (foodMod.isPresent()) {
                 return foodMod.get();
             }
-            foodMods.remove(loc);
+            foodMods.remove(item);
         }
         var mod = new FoodMod(item.foodProperties);
-        foodMods.put(loc, Optional.of(mod));
+        foodMods.put(item, Optional.of(mod));
         return mod;
     }
 
     public static void clearMods(Item item) {
-        var loc = BuiltInRegistries.ITEM.getKey(item);
-        foodMods.remove(loc);
+        foodMods.remove(item);
     }
 
     public static void removeFoodProperties(Item item) {
-        var loc = BuiltInRegistries.ITEM.getKey(item);
-        foodMods.remove(loc);
-        foodMods.put(loc, Optional.empty());
+        foodMods.remove(item);
+        foodMods.put(item, Optional.empty());
     }
 }

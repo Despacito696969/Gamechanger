@@ -34,7 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -88,7 +87,8 @@ public class Gamechanger implements ModInitializer {
                 .executes(ctx -> {
                     BuiltInRegistries.ITEM.forEach((item) -> {
                         var resource = BuiltInRegistries.ITEM.getKey(item);
-                        if (item.foodProperties != null && !FoodManager.foodMods.containsKey(resource)) {
+
+                        if (item.foodProperties != null && !FoodManager.foodMods.containsKey(item)) {
                             ctx.getSource().sendSuccess(() -> Component.literal(resource.toString()), true);
                         }
                     });
@@ -196,7 +196,7 @@ public class Gamechanger implements ModInitializer {
                             result.append("\n");
                             result.append(Component.literal("Amount: " + modifier.getAmount()));
                             result.append("\n");
-                            result.append(Component.literal("Id: " + modifier.getId().toString()));
+                            result.append(Component.literal("Id: " + modifier.getId()));
                             result.append("\n");
                         }
                         ctx.getSource().sendSuccess(() -> result, true);
@@ -351,7 +351,7 @@ public class Gamechanger implements ModInitializer {
                     })
                 ))
             )
-            .then(literal("unedible").executes(ctx -> {
+            .then(literal("inedible").executes(ctx -> {
                 var item = getItem(ctx);
                 if (item == null) {
                     return 0;
@@ -527,7 +527,7 @@ public class Gamechanger implements ModInitializer {
     }
 
     public static void resetManagers() {
-        FoodManager.foodMods = new HashMap<>();
+        FoodManager.foodMods = new IdentityHashMap<>();
         BlockPropertiesManager.propMods = new IdentityHashMap<>();
         AttributeManager.modList = new IdentityHashMap<>();
         TierManager.tierOverrides = new IdentityHashMap<>();
