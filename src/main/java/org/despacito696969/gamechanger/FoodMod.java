@@ -1,7 +1,8 @@
 package org.despacito696969.gamechanger;
 
 import net.minecraft.world.food.FoodProperties;
-import org.apache.commons.compress.utils.Lists;
+
+import java.util.List;
 
 public class FoodMod extends FoodProperties {
     public FoodProperties props;
@@ -19,7 +20,7 @@ public class FoodMod extends FoodProperties {
             props == null ? false : props.isMeat(),
             props == null ? false : props.canAlwaysEat(),
             props == null ? false : props.isFastFood(),
-            props == null ? Lists.newArrayList() : props.getEffects()
+            props == null ? List.of() : props.getEffects()
         );
         this.props = props;
     }

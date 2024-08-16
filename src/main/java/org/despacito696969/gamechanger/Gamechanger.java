@@ -11,8 +11,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.mininglevel.v1.MiningLevelManager;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.*;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -84,6 +83,19 @@ public class Gamechanger implements ModInitializer {
         attrFields.add(new AttrFieldPair("toughness", (v, w) -> v.toughness = w));
         attrFields.add(new AttrFieldPair("knockback_resistance", (v, w) -> v.knockbackResistance = w));
 
+        var listCommand = literal("list")
+            .then(literal("unedited_foods")
+                .executes(ctx -> {
+                    BuiltInRegistries.ITEM.forEach((item) -> {
+                        var resource = BuiltInRegistries.ITEM.getKey(item);
+                        if (item.foodProperties != null && !FoodManager.foodMods.containsKey(resource)) {
+                            ctx.getSource().sendSuccess(() -> Component.literal(resource.toString()), true);
+                        }
+                    });
+                    return 1;
+                })
+            );
+
         var attributeSet = literal("set");
 
         for (var field : attrFields) {
@@ -105,24 +117,12 @@ public class Gamechanger implements ModInitializer {
                             new AttributeMod.DoubleMod(AttributeMod.DoubleMod.DoubleModMode.SET, value)
                         );
                         attributeMod.updateAttributes(stats);
+                        updateConfig(ctx);
                         return 1;
                     })
                 )
             );
         }
-
-        var listCommand = literal("list")
-            .then(literal("unedited_foods")
-                .executes(ctx -> {
-                    BuiltInRegistries.ITEM.forEach((item) -> {
-                        var resource = BuiltInRegistries.ITEM.getKey(item);
-                        if (item.foodProperties != null && !FoodManager.foodMods.containsKey(resource)) {
-                            ctx.getSource().sendSuccess(() -> Component.literal(resource.toString()), true);
-                        }
-                    });
-                    return 1;
-                })
-            );
 
         var attributeRemove = literal("remove");
 
@@ -143,6 +143,7 @@ public class Gamechanger implements ModInitializer {
                         new AttributeMod.DoubleMod(AttributeMod.DoubleMod.DoubleModMode.REMOVE, 0)
                     );
                     attributeMod.updateAttributes(stats);
+                    updateConfig(ctx);
                     return 1;
                 })
             );
@@ -167,6 +168,7 @@ public class Gamechanger implements ModInitializer {
                         null
                     );
                     attributeMod.updateAttributes(stats);
+                    updateConfig(ctx);
                     return 1;
                 })
             );
@@ -296,6 +298,7 @@ public class Gamechanger implements ModInitializer {
                         }
                         var props = FoodManager.getOrCreateFoodProperties(item);
                         props.nutritionOpt = IntegerArgumentType.getInteger(ctx, "value");
+                        updateConfig(ctx);
                         return 1;
                     })
                 ))
@@ -307,6 +310,7 @@ public class Gamechanger implements ModInitializer {
                         }
                         var props = FoodManager.getOrCreateFoodProperties(item);
                         props.saturationModifierOpt = FloatArgumentType.getFloat(ctx, "value");
+                        updateConfig(ctx);
                         return 1;
                     })
                 ))
@@ -318,6 +322,7 @@ public class Gamechanger implements ModInitializer {
                         }
                         var props = FoodManager.getOrCreateFoodProperties(item);
                         props.isMeatOpt = BoolArgumentType.getBool(ctx, "value");
+                        updateConfig(ctx);
                         return 1;
                     })
                 ))
@@ -329,6 +334,7 @@ public class Gamechanger implements ModInitializer {
                         }
                         var props = FoodManager.getOrCreateFoodProperties(item);
                         props.canAlwaysEatOpt = BoolArgumentType.getBool(ctx, "value");
+                        updateConfig(ctx);
                         return 1;
                     })
                 ))
@@ -340,6 +346,7 @@ public class Gamechanger implements ModInitializer {
                         }
                         var props = FoodManager.getOrCreateFoodProperties(item);
                         props.isFastFoodOpt = BoolArgumentType.getBool(ctx, "value");
+                        updateConfig(ctx);
                         return 1;
                     })
                 ))
@@ -350,6 +357,7 @@ public class Gamechanger implements ModInitializer {
                     return 0;
                 }
                 FoodManager.removeFoodProperties(item);
+                updateConfig(ctx);
                 return 1;
             }))
             .then(literal("reset").executes(
@@ -387,6 +395,7 @@ public class Gamechanger implements ModInitializer {
                             ctx -> executeForBlock(ctx, (block) -> {
                                 var props = BlockPropertiesManager.getOrCreateProperties(block);
                                 props.destroyTime = FloatArgumentType.getFloat(ctx, "value");
+                                updateConfig(ctx);
                             })
                         )
                     )
@@ -397,6 +406,7 @@ public class Gamechanger implements ModInitializer {
                             ctx -> executeForBlock(ctx, (block) -> {
                                 var props = BlockPropertiesManager.getOrCreateProperties(block);
                                 props.explosionResistance = FloatArgumentType.getFloat(ctx, "value");
+                                updateConfig(ctx);
                             })
                         )
                     )
@@ -407,6 +417,7 @@ public class Gamechanger implements ModInitializer {
                             ctx -> executeForBlock(ctx, (block) -> {
                                 var props = BlockPropertiesManager.getOrCreateProperties(block);
                                 props.miningLevel = IntegerArgumentType.getInteger(ctx, "value");
+                                updateConfig(ctx);
                             })
                         )
                     )
@@ -420,6 +431,7 @@ public class Gamechanger implements ModInitializer {
                             return;
                         }
                         props.destroyTime = null;
+                        updateConfig(ctx);
                     }))
                 )
                 .then(literal("explosion_resistance")
@@ -429,6 +441,7 @@ public class Gamechanger implements ModInitializer {
                             return;
                         }
                         props.explosionResistance = null;
+                        updateConfig(ctx);
                     }))
                 )
                 .then(literal("mining_level")
@@ -438,6 +451,7 @@ public class Gamechanger implements ModInitializer {
                             return;
                         }
                         props.miningLevel = null;
+                        updateConfig(ctx);
                     }))
                 )
             );
@@ -492,6 +506,16 @@ public class Gamechanger implements ModInitializer {
                 );
             }
         );
+    }
+
+    public static void updateConfig(CommandContext<CommandSourceStack> ctx) {
+        var players = PlayerLookup.all(ctx.getSource().getServer());
+        for (var player : players) {
+            var str = saveToJson().toString();
+            FriendlyByteBuf packet = PacketByteBufs.create();
+            packet.writeUtf(str);
+            ServerPlayNetworking.send(player, CONFIG_SYNC_PACKET_ID, packet);
+        }
     }
 
     public static JsonObject saveToJson() {
@@ -584,6 +608,7 @@ public class Gamechanger implements ModInitializer {
             var tier = TierManager.getOrCreateTier(tieredItem);
             var value = IntegerArgumentType.getInteger(ctx, "value");
             consumer.accept(tier, value);
+            updateConfig(ctx);
             return 1;
         });
     }
@@ -601,6 +626,7 @@ public class Gamechanger implements ModInitializer {
             var tier = TierManager.getOrCreateTier(tieredItem);
             var value = FloatArgumentType.getFloat(ctx, "value");
             consumer.accept(tier, value);
+            updateConfig(ctx);
             return 1;
         });
     }
@@ -617,6 +643,7 @@ public class Gamechanger implements ModInitializer {
         }
         var tier = TierManager.getOrCreateTier(tieredItem);
         consumer.accept(tier);
+        updateConfig(ctx);
         return 1;
     }
 }
