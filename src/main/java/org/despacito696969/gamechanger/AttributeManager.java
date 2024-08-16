@@ -14,7 +14,6 @@ import static org.despacito696969.gamechanger.AttributeMod.*;
 
 public class AttributeManager {
     public static IdentityHashMap<Item, AttributeMod> modList = new IdentityHashMap<>();
-
     public static AttributeMod getOrCreateAttributeManagerEntry(ItemAttributeInfo itemAttributeInfo) {
         var item = itemAttributeInfo.item;
         var entry = modList.get(item);

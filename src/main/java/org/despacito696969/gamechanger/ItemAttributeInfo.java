@@ -1,5 +1,6 @@
 package org.despacito696969.gamechanger;
 
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -56,7 +57,11 @@ public class ItemAttributeInfo {
             return new ItemAttributeInfo(uuid, name, attributes, item);
         }
         else {
-            return null;
+            ImmutableMultimap.Builder<Attribute, AttributeModifier> builder = ImmutableMultimap.builder();
+            var attributes = builder.build();
+            var name = "Item modifier";
+            UUID uuid = temp_uuid;
+            return new ItemAttributeInfo(uuid, name, attributes, item);
         }
     }
 }
