@@ -5,15 +5,15 @@ import com.google.common.collect.Multimap;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.Item;
+import org.apache.logging.log4j.util.TriConsumer;
 
 import java.util.ArrayList;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 
 public class AttributeMod {
-
-    public class DoubleMod {
+    public static class DoubleMod {
         public DoubleModMode mode;
         public double value;
         public enum DoubleModMode {
@@ -34,6 +34,7 @@ public class AttributeMod {
     public DoubleMod speed;
     public DoubleMod knockbackResistance;
     public DoubleMod maxHealth;
+    public Multimap<Attribute, AttributeModifier> replacementAttributes;
 
     private static class AttributeEntry {
         public Attribute attribute;
@@ -44,17 +45,22 @@ public class AttributeMod {
         }
     }
 
-    public Multimap<Attribute, AttributeModifier> getNewAttributes(
-        UUID uuid,
-        String attributeName,
-        Multimap<Attribute, AttributeModifier> attributes
+    public AttributeMod(ItemAttributeInfo itemAttributeInfo) {
+        updateAttributes(itemAttributeInfo);
+    }
+
+    public void updateAttributes(
+        ItemAttributeInfo itemAttributeInfo
     ) {
+        var uuid = itemAttributeInfo.uuid;
+        var attributeName = itemAttributeInfo.name;
+        var attributes = itemAttributeInfo.defaultAttributes;
         ArrayList<AttributeEntry> entries = new ArrayList<>();
         for (var entry : attributes.entries()) {
             entries.add(new AttributeEntry(entry.getKey(), entry.getValue()));
         }
 
-        BiConsumer<DoubleMod, Attribute> applyAttribute = (doubleMod, attribute) -> {
+        TriConsumer<DoubleMod, Attribute, Double> applyAttribute = (doubleMod, attribute, defaultValue) -> {
             if (doubleMod == null) {
                 return;
             }
@@ -77,9 +83,10 @@ public class AttributeMod {
                             entry.attributeModifier = new AttributeModifier(
                                 uuid,
                                 oldModifier.getName(),
-                                doubleMod.value,
+                                doubleMod.value - defaultValue,
                                 oldModifier.getOperation()
                             );
+                            foundAttribute = true;
                             break;
                         }
                     }
@@ -100,17 +107,41 @@ public class AttributeMod {
             }
         };
 
-        applyAttribute.accept(attackDamage, Attributes.ATTACK_DAMAGE);
-        applyAttribute.accept(attackSpeed, Attributes.ATTACK_SPEED);
-        applyAttribute.accept(armor, Attributes.ARMOR);
-        applyAttribute.accept(toughness, Attributes.ARMOR_TOUGHNESS);
-        applyAttribute.accept(speed, Attributes.MOVEMENT_SPEED);
-        applyAttribute.accept(knockbackResistance, Attributes.KNOCKBACK_RESISTANCE);
-        applyAttribute.accept(maxHealth, Attributes.MAX_HEALTH);
+        applyAttribute.accept(attackDamage, Attributes.ATTACK_DAMAGE, 1.0);
+        applyAttribute.accept(attackSpeed, Attributes.ATTACK_SPEED, 4.0);
+        applyAttribute.accept(armor, Attributes.ARMOR, 0.0);
+        applyAttribute.accept(toughness, Attributes.ARMOR_TOUGHNESS, 0.0);
+        applyAttribute.accept(speed, Attributes.MOVEMENT_SPEED, 0.0);
+        applyAttribute.accept(knockbackResistance, Attributes.KNOCKBACK_RESISTANCE, 0.0);
+        applyAttribute.accept(maxHealth, Attributes.MAX_HEALTH,0.0);
         ImmutableMultimap.Builder<Attribute, AttributeModifier> builder = ImmutableMultimap.builder();
+
+        BiConsumer<Attribute, UUID> replace_attribute = (attribute, newUuid) -> {
+            for (int index = 0; index < entries.size(); ++index) {
+                var entry = entries.get(index);
+                if (entry.attribute == attribute) {
+                    entries.set(
+                        index,
+                        new AttributeEntry(
+                            entry.attribute,
+                            new AttributeModifier(
+                                newUuid,
+                                entry.attributeModifier.getName(),
+                                entry.attributeModifier.getAmount(),
+                                entry.attributeModifier.getOperation()
+                            )
+                        )
+                    );
+                }
+            }
+        };
+
+        replace_attribute.accept(Attributes.ATTACK_DAMAGE, Item.BASE_ATTACK_DAMAGE_UUID);
+        replace_attribute.accept(Attributes.ATTACK_SPEED, Item.BASE_ATTACK_SPEED_UUID);
+
         for (var entry : entries) {
             builder.put(entry.attribute, entry.attributeModifier);
         }
-        return builder.build();
+        this.replacementAttributes = builder.build();
     }
 }

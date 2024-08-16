@@ -1,6 +1,5 @@
 package org.despacito696969.gamechanger.mixin;
 
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Tier;
 import net.minecraft.world.item.TieredItem;

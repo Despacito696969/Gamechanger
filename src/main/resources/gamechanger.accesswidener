@@ -15,3 +15,9 @@ accessible field net/minecraft/world/level/block/state/BlockBehaviour properties
 accessible class net/fabricmc/fabric/mixin/mininglevel/MiningToolItemMixin
 
 accessible field net/minecraft/world/item/ArmorItem defaultModifiers Lcom/google/common/collect/Multimap;
+
+accessible field net/minecraft/world/item/ArmorItem ARMOR_MODIFIER_UUID_PER_TYPE Ljava/util/EnumMap;
+
+accessible field net/minecraft/world/item/SwordItem defaultModifiers Lcom/google/common/collect/Multimap;
+
+accessible field net/minecraft/world/item/Item BASE_ATTACK_SPEED_UUID Ljava/util/UUID;

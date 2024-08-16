@@ -1,13 +1,12 @@
 package org.despacito696969.gamechanger;
 
-import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
@@ -18,12 +17,9 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.*;
 import net.minecraft.world.level.block.Block;
@@ -36,10 +32,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
@@ -49,35 +47,107 @@ public class Gamechanger implements ModInitializer {
     public static final String CONFIG_FILE_NAME = "gamechanger.json";
 
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-    /**
-     * Runs the mod initializer.
-     */
+
+    public record ManagerConfigFields(String field, Consumer<JsonArray> loader, Supplier<JsonArray> saver) {}
+
+    public static ManagerConfigFields[] managers = new ManagerConfigFields[] {
+        new ManagerConfigFields("food", FoodManager::loadFromJson, FoodManager::saveToJson),
+        new ManagerConfigFields("blocks", BlockPropertiesManager::loadFromJson, BlockPropertiesManager::saveToJson),
+        new ManagerConfigFields("attributes", AttributeManager::loadFromJson, AttributeManager::saveToJson),
+        new ManagerConfigFields("tools", TierManager::loadFromJson, TierManager::saveToJson),
+    };
+
     @Override
     public void onInitialize() {
+        // This language is an embodiment of C418 - 13
+        record AttrFieldPair(
+            String name,
+            BiConsumer<AttributeMod, AttributeMod.DoubleMod> setter
+        ) {}
 
-        /*var attributeCommand = literal("attributes")
-            .then(literal("set")
-                .then(literal("attack_damage")
-                    .then(argument("value", FloatArgumentType.floatArg())
-                        .executes(ctx -> {
-                            var item = getItem(ctx);
-                            if (item == null) {
-                                return 0;
-                            }
-                            if (item instanceof )
-                                return 1;
-                        })
-                    )
+        ArrayList<AttrFieldPair> attrFields = new ArrayList<>();
+        attrFields.add(new AttrFieldPair("attack_damage", (v, w) -> v.attackDamage = w));
+        attrFields.add(new AttrFieldPair("attack_speed", (v, w) -> v.attackSpeed = w));
+        attrFields.add(new AttrFieldPair("speed", (v, w) -> v.speed = w));
+        attrFields.add(new AttrFieldPair("max_health", (v, w) -> v.maxHealth = w));
+        attrFields.add(new AttrFieldPair("armor", (v, w) -> v.armor = w));
+        attrFields.add(new AttrFieldPair("toughness", (v, w) -> v.toughness = w));
+        attrFields.add(new AttrFieldPair("knockback_resistance", (v, w) -> v.knockbackResistance = w));
+
+        var attributeSet = literal("set");
+
+        for (var field : attrFields) {
+            attributeSet = attributeSet.then(literal(field.name)
+                .then(argument("value", FloatArgumentType.floatArg())
+                    .executes(ctx -> {
+                        var item = getItem(ctx);
+                        if (item == null) {
+                            return 0;
+                        }
+                        var stats = ItemAttributeInfo.getAttributeStats(item);
+                        if (stats == null) {
+                            return 0;
+                        }
+                        var attributeMod = AttributeManager.getOrCreateAttributeManagerEntry(stats);
+                        var value = (double)FloatArgumentType.getFloat(ctx, "value");
+                        field.setter.accept(
+                            attributeMod,
+                            new AttributeMod.DoubleMod(AttributeMod.DoubleMod.DoubleModMode.SET, value)
+                        );
+                        attributeMod.updateAttributes(stats);
+                        return 1;
+                    })
                 )
-            )
-            .then(literal("clear")
-                .then(literal("attack_damage")
+            );
+        }
 
-                )
-            );*/
+        var attributeRemove = literal("remove");
 
+        for (var field : attrFields) {
+            attributeRemove = attributeRemove.then(literal(field.name)
+                .executes(ctx -> {
+                    var item = getItem(ctx);
+                    if (item == null) {
+                        return 0;
+                    }
+                    var stats = ItemAttributeInfo.getAttributeStats(item);
+                    if (stats == null) {
+                        return 0;
+                    }
+                    var attributeMod = AttributeManager.getOrCreateAttributeManagerEntry(stats);
+                    field.setter.accept(
+                        attributeMod,
+                        new AttributeMod.DoubleMod(AttributeMod.DoubleMod.DoubleModMode.REMOVE, 0)
+                    );
+                    attributeMod.updateAttributes(stats);
+                    return 1;
+                })
+            );
+        }
 
+        var attributeClear = literal("clear");
 
+        for (var field : attrFields) {
+            attributeClear = attributeClear.then(literal(field.name)
+                .executes(ctx -> {
+                    var item = getItem(ctx);
+                    if (item == null) {
+                        return 0;
+                    }
+                    var stats = ItemAttributeInfo.getAttributeStats(item);
+                    if (stats == null) {
+                        return 0;
+                    }
+                    var attributeMod = AttributeManager.getOrCreateAttributeManagerEntry(stats);
+                    field.setter.accept(
+                        attributeMod,
+                        null
+                    );
+                    attributeMod.updateAttributes(stats);
+                    return 1;
+                })
+            );
+        }
 
         var attributeCommand = literal("attributes")
             .then(literal("get")
@@ -107,24 +177,19 @@ public class Gamechanger implements ModInitializer {
                         ctx.getSource().sendSuccess(() -> result, true);
                     };
 
-                    if (item instanceof ArmorItem armorItem) {
-                        var attribute_mods = armorItem.getDefaultAttributeModifiers(armorItem.getEquipmentSlot());
-                        printAttributes.accept(attribute_mods);
-                    }
-                    else if (item instanceof DiggerItem diggerItem) {
-                        var attribute_mods = diggerItem.getDefaultAttributeModifiers(EquipmentSlot.MAINHAND);
-                        printAttributes.accept(attribute_mods);
-                    }
-                    else if (item instanceof SwordItem swordItem) {
-                        var attribute_mods = swordItem.getDefaultAttributeModifiers(EquipmentSlot.MAINHAND);
-                        printAttributes.accept(attribute_mods);
-                    }
-                    else {
+                    var stats = ItemAttributeInfo.getAttributeStats(item);
+                    if (stats == null) {
                         return 0;
                     }
 
+                    printAttributes.accept(stats.currentAttributes);
                     return 1;
                 })
+            )
+            .then(literal("modify")
+                .then(attributeSet)
+                .then(attributeRemove)
+                .then(attributeClear)
             );
 
         var itemCommand = literal("tools")
@@ -367,6 +432,7 @@ public class Gamechanger implements ModInitializer {
 
             FoodManager.foodMods = new HashMap<>();
             BlockPropertiesManager.propMods = new IdentityHashMap<>();
+            AttributeManager.modList = new IdentityHashMap<>();
 
             try (var reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 var element = JsonParser.parseReader(reader);
@@ -375,32 +441,22 @@ public class Gamechanger implements ModInitializer {
                     return;
                 }
                 var mainObject = element.getAsJsonObject();
-                if (mainObject.has("food")) {
-                    var foodObject = mainObject.get("food");
-                    if (foodObject.isJsonArray()) {
-                        var foods = foodObject.getAsJsonArray();
-                        FoodManager.loadFromJson(foods);
-                    }
-                    else {
-                        LOGGER.warn("Config: food field should contain an array");
-                    }
-                }
-                else {
-                    LOGGER.warn("Config: no food field");
-                }
 
-                if (mainObject.has("blocks")) {
-                    var blocksObject = mainObject.get("blocks");
-                    if (blocksObject.isJsonArray()) {
-                        var blocks = blocksObject.getAsJsonArray();
-                        BlockPropertiesManager.loadFromJson(blocks);
+                for (var field : managers) {
+                    var fieldName = field.field();
+                    if (mainObject.has(fieldName)) {
+                        var subObj = mainObject.get(fieldName);
+                        if (subObj.isJsonArray()) {
+                            var arr = subObj.getAsJsonArray();
+                            field.loader.accept(arr);
+                        }
+                        else {
+                            LOGGER.warn("Config: " + fieldName + " field should contain an array");
+                        }
                     }
                     else {
-                        LOGGER.warn("Config: blocks field should contain an array");
+                        LOGGER.warn("Config: no " + fieldName + " field");
                     }
-                }
-                else {
-                    LOGGER.warn("Config: no blocks field");
                 }
             }
             catch (IOException exception) {
@@ -410,8 +466,9 @@ public class Gamechanger implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STOPPING.register((server) -> {
             var toSave = new JsonObject();
-            toSave.add("food", FoodManager.saveToJson());
-            toSave.add("blocks", BlockPropertiesManager.saveToJson());
+            for (var field : managers) {
+                toSave.add(field.field(), field.saver.get());
+            }
 
             Path configPath = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
             try (var writer = Files.newBufferedWriter(configPath, StandardCharsets.UTF_8)) {
@@ -544,4 +601,15 @@ public class Gamechanger implements ModInitializer {
         consumer.accept(tier);
         return 1;
     }
+
+    /*public static void getCommandForAttributeChange(String lit, Function<AttributeMod.DoubleMod, Integer> fn) {
+        literal(lit)
+            .then(literal("attack_damage"))
+            .then(literal("attack_speed"))
+            .then(literal("speed"))
+            .then(literal("max_health"))
+            .then(literal("armor"))
+            .then(literal("toughness"))
+            .then(literal("knockback_resistance"));
+    }*/
 }

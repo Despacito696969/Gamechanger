@@ -24,7 +24,7 @@ public class BlockPropertiesManager {
         return props_2;
     }
 
-    public static JsonElement saveToJson() {
+    public static JsonArray saveToJson() {
         var result = new JsonArray();
         for (var entry : propMods.entrySet()) {
             var obj = new JsonObject();
