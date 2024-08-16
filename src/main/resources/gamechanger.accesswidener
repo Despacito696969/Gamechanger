@@ -21,3 +21,5 @@ accessible field net/minecraft/world/item/ArmorItem ARMOR_MODIFIER_UUID_PER_TYPE
 accessible field net/minecraft/world/item/SwordItem defaultModifiers Lcom/google/common/collect/Multimap;
 
 accessible field net/minecraft/world/item/Item BASE_ATTACK_SPEED_UUID Ljava/util/UUID;
+
+accessible field net/minecraft/world/item/Item foodProperties Lnet/minecraft/world/food/FoodProperties;

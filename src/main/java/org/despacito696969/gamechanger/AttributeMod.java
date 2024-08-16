@@ -75,6 +75,7 @@ public class AttributeMod {
                     }
                 }
                 case SET -> {
+                    var attrValue = doubleMod.value - defaultValue;
                     boolean foundAttribute = false;
                     for (int index = 0; index < entries.size(); ++index) {
                         var entry = entries.get(index);
@@ -83,7 +84,7 @@ public class AttributeMod {
                             entry.attributeModifier = new AttributeModifier(
                                 uuid,
                                 oldModifier.getName(),
-                                doubleMod.value - defaultValue,
+                                attrValue,
                                 oldModifier.getOperation()
                             );
                             foundAttribute = true;
@@ -97,7 +98,7 @@ public class AttributeMod {
                                 new AttributeModifier(
                                     uuid,
                                     attributeName,
-                                    doubleMod.value,
+                                    attrValue,
                                     AttributeModifier.Operation.ADDITION
                                 )
                             )

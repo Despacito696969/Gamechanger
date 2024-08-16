@@ -38,6 +38,10 @@ public class ItemMixin {
         cir.setReturnValue(props.isPresent());
     }
 
+    /**
+     * @author Despacito696969
+     * @reason meow :3
+     */
     @Overwrite
     public Multimap<Attribute, AttributeModifier> getDefaultAttributeModifiers(EquipmentSlot slot) {
         if (slot != EquipmentSlot.MAINHAND) {

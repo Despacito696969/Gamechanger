@@ -158,7 +158,7 @@ public class FoodManager {
             }
             foodMods.remove(loc);
         }
-        var mod = new FoodMod(item.getFoodProperties());
+        var mod = new FoodMod(item.foodProperties);
         foodMods.put(loc, Optional.of(mod));
         return mod;
     }

@@ -1,9 +1,7 @@
 package org.despacito696969.gamechanger;
 
 import com.google.common.collect.Multimap;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -13,10 +11,14 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.mininglevel.v1.MiningLevelManager;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -50,6 +52,8 @@ public class Gamechanger implements ModInitializer {
 
     public record ManagerConfigFields(String field, Consumer<JsonArray> loader, Supplier<JsonArray> saver) {}
 
+    public static ResourceLocation CONFIG_SYNC_PACKET_ID = new ResourceLocation(MOD_ID, "config_sync");
+
     public static ManagerConfigFields[] managers = new ManagerConfigFields[] {
         new ManagerConfigFields("food", FoodManager::loadFromJson, FoodManager::saveToJson),
         new ManagerConfigFields("blocks", BlockPropertiesManager::loadFromJson, BlockPropertiesManager::saveToJson),
@@ -59,6 +63,12 @@ public class Gamechanger implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        registerGamechangerCommand();
+        registerServerLifecycleEvents();
+        registerPackets();
+    }
+
+    public void registerGamechangerCommand() {
         // This language is an embodiment of C418 - 13
         record AttrFieldPair(
             String name,
@@ -100,6 +110,19 @@ public class Gamechanger implements ModInitializer {
                 )
             );
         }
+
+        var listCommand = literal("list")
+            .then(literal("unedited_foods")
+                .executes(ctx -> {
+                    BuiltInRegistries.ITEM.forEach((item) -> {
+                        var resource = BuiltInRegistries.ITEM.getKey(item);
+                        if (item.foodProperties != null && !FoodManager.foodMods.containsKey(resource)) {
+                            ctx.getSource().sendSuccess(() -> Component.literal(resource.toString()), true);
+                        }
+                    });
+                    return 1;
+                })
+            );
 
         var attributeRemove = literal("remove");
 
@@ -263,75 +286,75 @@ public class Gamechanger implements ModInitializer {
                 )
             );
 
-            var foodCommand = literal("food")
-                .then(literal("set")
-                    .then(literal("nutrition").then(argument("value", IntegerArgumentType.integer())
-                        .executes(ctx -> {
-                            var item = getItem(ctx);
-                            if (item == null) {
-                                return 0;
-                            }
-                            var props = FoodManager.getOrCreateFoodProperties(item);
-                            props.nutritionOpt = IntegerArgumentType.getInteger(ctx, "value");
-                            return 1;
-                        })
-                    ))
-                    .then(literal("saturation").then(argument("value", FloatArgumentType.floatArg())
-                        .executes(ctx -> {
-                            var item = getItem(ctx);
-                            if (item == null) {
-                                return 0;
-                            }
-                            var props = FoodManager.getOrCreateFoodProperties(item);
-                            props.saturationModifierOpt = FloatArgumentType.getFloat(ctx, "value");
-                            return 1;
-                        })
-                    ))
-                    .then(literal("is_meat").then(argument("value", BoolArgumentType.bool())
-                        .executes(ctx -> {
-                            var item = getItem(ctx);
-                            if (item == null) {
-                                return 0;
-                            }
-                            var props = FoodManager.getOrCreateFoodProperties(item);
-                            props.isMeatOpt = BoolArgumentType.getBool(ctx, "value");
-                            return 1;
-                        })
-                    ))
-                    .then(literal("can_always_eat").then(argument("value", BoolArgumentType.bool())
-                        .executes(ctx -> {
-                            var item = getItem(ctx);
-                            if (item == null) {
-                                return 0;
-                            }
-                            var props = FoodManager.getOrCreateFoodProperties(item);
-                            props.canAlwaysEatOpt = BoolArgumentType.getBool(ctx, "value");
-                            return 1;
-                        })
-                    ))
-                    .then(literal("is_fast_food").then(argument("value", BoolArgumentType.bool())
-                        .executes(ctx -> {
-                            var item = getItem(ctx);
-                            if (item == null) {
-                                return 0;
-                            }
-                            var props = FoodManager.getOrCreateFoodProperties(item);
-                            props.isFastFoodOpt = BoolArgumentType.getBool(ctx, "value");
-                            return 1;
-                        })
-                    ))
-                )
-                .then(literal("unedible").executes(ctx -> {
-                    var item = getItem(ctx);
-                    if (item == null) {
-                        return 0;
-                    }
-                    FoodManager.removeFoodProperties(item);
-                    return 1;
-                }))
-                .then(literal("reset").executes(
-                    ctx -> applyToItem(ctx, FoodManager::clearMods)
-                ));
+        var foodCommand = literal("food")
+            .then(literal("set")
+                .then(literal("nutrition").then(argument("value", IntegerArgumentType.integer())
+                    .executes(ctx -> {
+                        var item = getItem(ctx);
+                        if (item == null) {
+                            return 0;
+                        }
+                        var props = FoodManager.getOrCreateFoodProperties(item);
+                        props.nutritionOpt = IntegerArgumentType.getInteger(ctx, "value");
+                        return 1;
+                    })
+                ))
+                .then(literal("saturation").then(argument("value", FloatArgumentType.floatArg())
+                    .executes(ctx -> {
+                        var item = getItem(ctx);
+                        if (item == null) {
+                            return 0;
+                        }
+                        var props = FoodManager.getOrCreateFoodProperties(item);
+                        props.saturationModifierOpt = FloatArgumentType.getFloat(ctx, "value");
+                        return 1;
+                    })
+                ))
+                .then(literal("is_meat").then(argument("value", BoolArgumentType.bool())
+                    .executes(ctx -> {
+                        var item = getItem(ctx);
+                        if (item == null) {
+                            return 0;
+                        }
+                        var props = FoodManager.getOrCreateFoodProperties(item);
+                        props.isMeatOpt = BoolArgumentType.getBool(ctx, "value");
+                        return 1;
+                    })
+                ))
+                .then(literal("can_always_eat").then(argument("value", BoolArgumentType.bool())
+                    .executes(ctx -> {
+                        var item = getItem(ctx);
+                        if (item == null) {
+                            return 0;
+                        }
+                        var props = FoodManager.getOrCreateFoodProperties(item);
+                        props.canAlwaysEatOpt = BoolArgumentType.getBool(ctx, "value");
+                        return 1;
+                    })
+                ))
+                .then(literal("is_fast_food").then(argument("value", BoolArgumentType.bool())
+                    .executes(ctx -> {
+                        var item = getItem(ctx);
+                        if (item == null) {
+                            return 0;
+                        }
+                        var props = FoodManager.getOrCreateFoodProperties(item);
+                        props.isFastFoodOpt = BoolArgumentType.getBool(ctx, "value");
+                        return 1;
+                    })
+                ))
+            )
+            .then(literal("unedible").executes(ctx -> {
+                var item = getItem(ctx);
+                if (item == null) {
+                    return 0;
+                }
+                FoodManager.removeFoodProperties(item);
+                return 1;
+            }))
+            .then(literal("reset").executes(
+                ctx -> applyToItem(ctx, FoodManager::clearMods)
+            ));
         var blockCommand = literal("blocks")
             .then(literal("get")
                 .executes(ctx ->
@@ -425,39 +448,19 @@ public class Gamechanger implements ModInitializer {
             .then(blockCommand)
             .then(foodCommand)
             .then(attributeCommand)
+            .then(listCommand)
         ));
+    }
 
+    public void registerServerLifecycleEvents() {
         ServerLifecycleEvents.SERVER_STARTING.register((server) -> {
             Path configPath = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
 
-            FoodManager.foodMods = new HashMap<>();
-            BlockPropertiesManager.propMods = new IdentityHashMap<>();
-            AttributeManager.modList = new IdentityHashMap<>();
+            resetManagers();
 
             try (var reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 var element = JsonParser.parseReader(reader);
-                if (!element.isJsonObject()) {
-                    LOGGER.warn("Config does not contain a json object");
-                    return;
-                }
-                var mainObject = element.getAsJsonObject();
-
-                for (var field : managers) {
-                    var fieldName = field.field();
-                    if (mainObject.has(fieldName)) {
-                        var subObj = mainObject.get(fieldName);
-                        if (subObj.isJsonArray()) {
-                            var arr = subObj.getAsJsonArray();
-                            field.loader.accept(arr);
-                        }
-                        else {
-                            LOGGER.warn("Config: " + fieldName + " field should contain an array");
-                        }
-                    }
-                    else {
-                        LOGGER.warn("Config: no " + fieldName + " field");
-                    }
-                }
+                loadFromJson(element);
             }
             catch (IOException exception) {
                 LOGGER.error("Error while reading config: " + exception);
@@ -465,10 +468,7 @@ public class Gamechanger implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register((server) -> {
-            var toSave = new JsonObject();
-            for (var field : managers) {
-                toSave.add(field.field(), field.saver.get());
-            }
+            var toSave = saveToJson();
 
             Path configPath = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
             try (var writer = Files.newBufferedWriter(configPath, StandardCharsets.UTF_8)) {
@@ -480,41 +480,59 @@ public class Gamechanger implements ModInitializer {
         });
     }
 
-    /*public static LiteralArgumentBuilder<CommandSourceStack> applyModifierFloat(LiteralArgumentBuilder<CommandSourceStack> val, TriConsumer<CommandContext<CommandSourceStack>, ModifiedTier.Modifier, Float> consumer) {
-        var type = FloatArgumentType.floatArg();
-        return val
-            .then(literal("none").executes(context -> {
-                consumer.accept(context, ModifiedTier.Modifier.NONE, 0.0f);
-                return 1;
-            }))
-            .then(literal("set").then(argument("value", type)
-                .executes(
-                    context -> {
-                        final float value = FloatArgumentType.getFloat(context, "value");
-                        consumer.accept(context, ModifiedTier.Modifier.SET, value);
-                        return 1;
-                    }
-                )
-            ))
-            .then(literal("add").then(argument("value", type)
-                .executes(
-                    context -> {
-                        final float value = FloatArgumentType.getFloat(context, "value");
-                        consumer.accept(context, ModifiedTier.Modifier.ADD, value);
-                        return 1;
-                    }
-                )
-            ))
-            .then(literal("multiply").then(argument("value", type)
-                .executes(
-                    context -> {
-                        final float value = FloatArgumentType.getFloat(context, "value");
-                        consumer.accept(context, ModifiedTier.Modifier.MULTIPLY, value);
-                        return 1;
-                    }
-                )
-            ));
-    }*/
+    public void registerPackets() {
+        ServerPlayConnectionEvents.JOIN.register(
+            (handler, sender, server) -> {
+                var str = saveToJson().toString();
+                FriendlyByteBuf packet = PacketByteBufs.create();
+                packet.writeUtf(str);
+                sender.sendPacket(
+                    CONFIG_SYNC_PACKET_ID,
+                    packet
+                );
+            }
+        );
+    }
+
+    public static JsonObject saveToJson() {
+        var toSave = new JsonObject();
+        for (var field : managers) {
+            toSave.add(field.field(), field.saver.get());
+        }
+        return toSave;
+    }
+
+    public static void resetManagers() {
+        FoodManager.foodMods = new HashMap<>();
+        BlockPropertiesManager.propMods = new IdentityHashMap<>();
+        AttributeManager.modList = new IdentityHashMap<>();
+        TierManager.tierOverrides = new IdentityHashMap<>();
+    }
+
+    public static void loadFromJson(JsonElement element) {
+        if (!element.isJsonObject()) {
+            LOGGER.warn("Config does not contain a json object");
+            return;
+        }
+        var mainObject = element.getAsJsonObject();
+
+        for (var field : managers) {
+            var fieldName = field.field();
+            if (mainObject.has(fieldName)) {
+                var subObj = mainObject.get(fieldName);
+                if (subObj.isJsonArray()) {
+                    var arr = subObj.getAsJsonArray();
+                    field.loader.accept(arr);
+                }
+                else {
+                    LOGGER.warn("Config: " + fieldName + " field should contain an array");
+                }
+            }
+            else {
+                LOGGER.warn("Config: no " + fieldName + " field");
+            }
+        }
+    }
 
     @Nullable
     public static Item getItem(CommandContext<CommandSourceStack> ctx) {
@@ -601,15 +619,4 @@ public class Gamechanger implements ModInitializer {
         consumer.accept(tier);
         return 1;
     }
-
-    /*public static void getCommandForAttributeChange(String lit, Function<AttributeMod.DoubleMod, Integer> fn) {
-        literal(lit)
-            .then(literal("attack_damage"))
-            .then(literal("attack_speed"))
-            .then(literal("speed"))
-            .then(literal("max_health"))
-            .then(literal("armor"))
-            .then(literal("toughness"))
-            .then(literal("knockback_resistance"));
-    }*/
 }
